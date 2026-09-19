@@ -10,7 +10,7 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - TZ=UTC
     networks:
-      - mattermost-net # Добавляем в сеть
+      - mattermost-network # <-- Подключаем к сети
 
   app:
     image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG:-latest}
@@ -27,14 +27,14 @@ services:
       - MM_USERNAME=${POSTGRES_USER}
       - MM_PASSWORD=${POSTGRES_PASSWORD}
       - MM_DBNAME=${POSTGRES_DB}
-      # Убедитесь, что хост здесь точно 'db', как имя сервиса выше
+      # Хост 'db' должен совпадать с именем сервиса выше
       - MM_SQLSETTINGS_DATASOURCE=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable&connect_timeout=10
       
       - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}
       - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
       - MM_SERVICESETTINGS_ENABLEMOBILEPUSHPROXY=true
     networks:
-      - mattermost-net # Добавляем в сеть
+      - mattermost-network # <-- Подключаем к сети
 
   web:
     build: ./web
@@ -51,7 +51,7 @@ services:
       - APP_HOST=app
       - APP_PORT_NUMBER=8065
     networks:
-      - mattermost-net # Добавляем в сеть
+      - mattermost-network # <-- Подключаем к сети
 
 volumes:
   db_data:
@@ -62,7 +62,7 @@ volumes:
   app_client_plugins:
   cert_data:
 
-# Явное определение сети
+# Явное определение сети (это решает ошибку 'no such host')
 networks:
-  mattermost-net:
+  mattermost-network:
     driver: bridge
