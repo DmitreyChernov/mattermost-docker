@@ -4,21 +4,18 @@ services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
-    # Используем именованный том вместо пути к хосту (нет доступа к mkdir)
     volumes:
       - db_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
-      - TZ=UTC
 
   app:
     image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       - db
-    # Тоже используем именованные тома для данных приложения
     volumes:
       - app_config:/mattermost/config:rw
       - app_data:/mattermost/data:rw
@@ -30,36 +27,27 @@ services:
       - MM_PASSWORD=${POSTGRES_PASSWORD}
       - MM_DBNAME=${POSTGRES_DB}
       - MM_SQLSETTINGS_DATASOURCE=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable&connect_timeout=10
-      
-      # ГЛАВНОЕ ИСПРАВЛЕНИЕ ДЛЯ GITLAB SSO:
-      # Указываем домен БЕЗ порта, если используем стандартные 80/443.
-      # Если Timeweb пробросит порт иначе, добавьте :порт сюда.
+      # КЛЮЧЕВОЙ МОМЕНТ ДЛЯ GITLAB SSO:
+      # Домен БЕЗ порта, так как Nginx слушает стандартный 443
       - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}
-      
-      # Включаем мобильные приложения
       - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
       - MM_SERVICESETTINGS_ENABLEMOBILEPUSHPROXY=true
 
   web:
-    build: web
+    build: ./web
     restart: unless-stopped
     depends_on:
       - app
     ports:
-      # КРИТИЧНО: Пробрасываем стандартные порты. 
-      # Timeweb ожидает, что контейнер слушает 80 и 443.
       - "80:80"
       - "443:443"
     volumes:
-      # Сертификаты должны лежать в репозитории по этому пути
-      - ./volumes/web/cert:/cert:ro
-      - /etc/localtime:/etc/localtime:ro
+      - ./volumes/web/cert:/cert:rw
     environment:
-      - MATTERMOST_ENABLE_SSL=true
-      # Передаем домен в nginx, если скрипт входа его использует (опционально)
       - DOMAIN=${DOMAIN}
+      - APP_HOST=app
+      - APP_PORT_NUMBER=8065
 
-# Объявляем именованные тома, чтобы Docker создал их сам
 volumes:
   db_data:
   app_config:
