@@ -1,67 +1,69 @@
 version: "3"
 
 services:
-
   db:
-    build: db
-    read_only: true
+    image: postgres:16-alpine
     restart: unless-stopped
+    # Используем именованный том вместо пути к хосту (нет доступа к mkdir)
     volumes:
-      - ./volumes/db/var/lib/postgresql/data:/var/lib/postgresql/data
-      - /etc/localtime:/etc/localtime:ro
+      - db_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_USER=mmuser
-      - POSTGRES_PASSWORD=mmuser_password
-      - POSTGRES_DB=mattermost
-    # uncomment the following to enable backup
-    #  - AWS_ACCESS_KEY_ID=XXXX
-    #  - AWS_SECRET_ACCESS_KEY=XXXX
-    #  - WALE_S3_PREFIX=s3://BUCKET_NAME/PATH
-    #  - AWS_REGION=us-east-1
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - TZ=UTC
 
   app:
-    build:
-      context: app
-      # uncomment following lines for team edition or change UID/GID
-      # args:
-      #   - edition=team
-      #   - PUID=1000
-      #   - PGID=1000
-      #   - MM_VERSION=5.31
+    image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG:-latest}
     restart: unless-stopped
+    depends_on:
+      - db
+    # Тоже используем именованные тома для данных приложения
     volumes:
-      - ./volumes/app/mattermost/config:/mattermost/config:rw
-      - ./volumes/app/mattermost/data:/mattermost/data:rw
-      - ./volumes/app/mattermost/logs:/mattermost/logs:rw
-      - ./volumes/app/mattermost/plugins:/mattermost/plugins:rw
-      - ./volumes/app/mattermost/client-plugins:/mattermost/client/plugins:rw
-      - /etc/localtime:/etc/localtime:ro
-      # When you want to use SSO with GitLab, you have to add the cert pki chain of GitLab inside Alpine
-      # to avoid Token request failed: certificate signed by unknown authority (link: https://github.com/mattermost/mattermost-server/issues/13059)
-      # - <path_to_your_gitlab_pki>/pki_chain.pem:/etc/ssl/certs/pki_chain.pem:ro
+      - app_config:/mattermost/config:rw
+      - app_data:/mattermost/data:rw
+      - app_logs:/mattermost/logs:rw
+      - app_plugins:/mattermost/plugins:rw
+      - app_client_plugins:/mattermost/client/plugins:rw
     environment:
-      # set same as db credentials and dbname
-      - MM_USERNAME=mmuser
-      - MM_PASSWORD=mmuser_password
-      - MM_DBNAME=mattermost
-
-      # use the credentials you've set above, in the format:
-      # MM_SQLSETTINGS_DATASOURCE=postgres://${MM_USERNAME}:${MM_PASSWORD}@db:5432/${MM_DBNAME}?sslmode=disable&connect_timeout=10
-      - MM_SQLSETTINGS_DATASOURCE=postgres://mmuser:mmuser_password@db:5432/mattermost?sslmode=disable&connect_timeout=10
-
-      # in case your config is not in default location
-      #- MM_CONFIG=/mattermost/config/config.json
+      - MM_USERNAME=${POSTGRES_USER}
+      - MM_PASSWORD=${POSTGRES_PASSWORD}
+      - MM_DBNAME=${POSTGRES_DB}
+      - MM_SQLSETTINGS_DATASOURCE=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable&connect_timeout=10
+      
+      # ГЛАВНОЕ ИСПРАВЛЕНИЕ ДЛЯ GITLAB SSO:
+      # Указываем домен БЕЗ порта, если используем стандартные 80/443.
+      # Если Timeweb пробросит порт иначе, добавьте :порт сюда.
+      - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}
+      
+      # Включаем мобильные приложения
+      - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
+      - MM_SERVICESETTINGS_ENABLEMOBILEPUSHPROXY=true
 
   web:
     build: web
-    ports:
-      - "80:8080"
-      - "443:8443"
-    read_only: true
     restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      # КРИТИЧНО: Пробрасываем стандартные порты. 
+      # Timeweb ожидает, что контейнер слушает 80 и 443.
+      - "80:80"
+      - "443:443"
     volumes:
-      # This directory must have cert files if you want to enable SSL
+      # Сертификаты должны лежать в репозитории по этому пути
       - ./volumes/web/cert:/cert:ro
       - /etc/localtime:/etc/localtime:ro
-    cap_drop:
-      - ALL
+    environment:
+      - MATTERMOST_ENABLE_SSL=true
+      # Передаем домен в nginx, если скрипт входа его использует (опционально)
+      - DOMAIN=${DOMAIN}
+
+# Объявляем именованные тома, чтобы Docker создал их сам
+volumes:
+  db_data:
+  app_config:
+  app_data:
+  app_logs:
+  app_plugins:
+  app_client_plugins:
