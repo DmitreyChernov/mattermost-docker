@@ -1,6 +1,7 @@
+# HTTP -> HTTPS Redirect
 server {
-    listen 8080 default_server;
-    server_name _;
+    listen 80 default_server;
+    server_name {%DOMAIN%};
     return 301 https://$host$request_uri;
 }
 
@@ -9,23 +10,27 @@ map $http_x_forwarded_proto $proxy_x_forwarded_proto {
   ''      $scheme;
 }
 
+# HTTPS Server
 server {
-    listen 8443 ssl http2;
+    listen 443 ssl http2 default_server;
+    server_name {%DOMAIN%};
 
-    ssl_certificate /cert/cert.pem;
-    ssl_certificate_key /cert/key-no-password.pem;
+    # Пути к сертификатам, которые генерирует наш скрипт (или которые вы положите позже)
+    ssl_certificate /cert/fullchain.pem;
+    ssl_certificate_key /cert/privkey.pem;
+
     ssl_session_timeout 5m;
     ssl_protocols TLSv1.2 TLSv1.3;
-    # Please update the ciphers in this file every 6 months.
-    # https://ssl-config.mozilla.org/
+    # Актуальные шифры (из Mozilla SSL Config Generator)
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384;
     ssl_prefer_server_ciphers off;
 
+    # WebSocket support for Mattermost
     location ~ /api/v[0-9]+/(users/)?websocket$ {
         proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header X-Forwarded-Ssl on;
         proxy_set_header Connection "upgrade";
-
+        proxy_set_header X-Forwarded-Ssl on;
+        
         client_max_body_size 50M;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -55,5 +60,3 @@ server {
         proxy_pass http://{%APP_HOST%}:{%APP_PORT%};
     }
 }
-
-# See https://docs.mattermost.com/install/install-ubuntu-1604.html#configuring-nginx-with-ssl-and-http-2 for the SSL configuration
