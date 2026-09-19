@@ -9,6 +9,8 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
       - TZ=UTC
+    networks:
+      - mattermost-net # Добавляем в сеть
 
   app:
     image: mattermost/mattermost-team-edition:${MATTERMOST_IMAGE_TAG:-latest}
@@ -25,20 +27,20 @@ services:
       - MM_USERNAME=${POSTGRES_USER}
       - MM_PASSWORD=${POSTGRES_PASSWORD}
       - MM_DBNAME=${POSTGRES_DB}
+      # Убедитесь, что хост здесь точно 'db', как имя сервиса выше
       - MM_SQLSETTINGS_DATASOURCE=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable&connect_timeout=10
       
-      # КЛЮЧЕВАЯ ПЕРЕМЕННАЯ: Домен берется из окружения, порт не добавляется
       - MM_SERVICESETTINGS_SITEURL=https://${DOMAIN}
-      
       - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
       - MM_SERVICESETTINGS_ENABLEMOBILEPUSHPROXY=true
+    networks:
+      - mattermost-net # Добавляем в сеть
 
   web:
     build: ./web
     restart: unless-stopped
     depends_on:
       - app
-    # Используем expose вместо ports, так как SSL терминирует прокси Timeweb
     expose:
       - "443"
       - "80"
@@ -48,6 +50,8 @@ services:
       - DOMAIN=${DOMAIN}
       - APP_HOST=app
       - APP_PORT_NUMBER=8065
+    networks:
+      - mattermost-net # Добавляем в сеть
 
 volumes:
   db_data:
@@ -57,3 +61,8 @@ volumes:
   app_plugins:
   app_client_plugins:
   cert_data:
+
+# Явное определение сети
+networks:
+  mattermost-net:
+    driver: bridge
