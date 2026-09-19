@@ -27,9 +27,7 @@ services:
       - MM_DBNAME=mattermost
       - MM_SQLSETTINGS_DATASOURCE=postgres://mmuser:MattermostSecurePass2026!@db:5432/mattermost?sslmode=disable&connect_timeout=10
       
-      # ВАЖНО: Домен БЕЗ порта. 
-      # Мы надеемся, что внешний прокси Timeweb пробросит запрос на 8443, 
-      # и Mattermost увидит правильный Host.
+      # ВАЖНО: Без порта, так как внешний прокси Timeweb скроет его
       - MM_SERVICESETTINGS_SITEURL=https://mattermost.rechex.ru
       
       - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
@@ -40,9 +38,11 @@ services:
     restart: unless-stopped
     depends_on:
       - app
-    ports:
-      # Используем нестандартный порт 8443 вместо 443
-      - "8443:8443"
+    # УБИРАЕМ ports: ... 
+    # Используем expose, чтобы порт был виден другим контейнерам и хосту (для прокси Timeweb)
+    expose:
+      - "443"
+      - "80"
     volumes:
       - cert_data:/cert:rw
     environment:
