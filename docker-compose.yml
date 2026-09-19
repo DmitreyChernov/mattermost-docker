@@ -27,7 +27,7 @@ services:
       - MM_DBNAME=mattermost
       - MM_SQLSETTINGS_DATASOURCE=postgres://mmuser:MattermostSecurePass2026!@db:5432/mattermost?sslmode=disable&connect_timeout=10
       
-      # ЖЕСТКО ЗАДАННЫЙ ДОМЕН (решает проблему порта для GitLab SSO)
+      # Домен без порта (стандартный HTTPS 443)
       - MM_SERVICESETTINGS_SITEURL=https://mattermost.rechex.ru
       
       - MM_SERVICESETTINGS_ENABLEMOBILEAPP=true
@@ -39,18 +39,15 @@ services:
     depends_on:
       - app
     ports:
-      - "80:80"
+      # УДАЛЕН ПОРТ 80. Оставляем только 443 -> 443
       - "443:443"
     volumes:
-      # Именованный том для сертификатов (требование Timeweb)
       - cert_data:/cert:rw
     environment:
-      # Передаем домен в скрипт, чтобы он подставил его в конфиг Nginx и сертификат
       - DOMAIN=mattermost.rechex.ru
       - APP_HOST=app
       - APP_PORT_NUMBER=8065
 
-# Объявление именованных томов
 volumes:
   db_data:
   app_config:
